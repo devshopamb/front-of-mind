@@ -848,12 +848,13 @@ const FrontOfMind = () => {
               onClick={() => toggleTaskToday(projectId, task.id)}
               className={`p-1 rounded ${
                 task.isToday 
-                  ? 'text-orange-500 bg-orange-50 hover:bg-orange-100' 
+                  ? 'text-orange-500 bg-orange-50 hover:bg-orange-100 opacity-100' 
                   : 'text-gray-400 hover:text-orange-500 hover:bg-orange-50'
               }`}
+              style={{ opacity: task.isToday ? 1 : undefined }}
               title={task.isToday ? 'Remove from Today' : 'Add to Today'}
             >
-              <Calendar size={14} />
+              <Star size={14} fill={task.isToday ? 'currentColor' : 'none'} />
             </button>
             {viewMode === 'projects' && (
               <button
@@ -968,7 +969,7 @@ const FrontOfMind = () => {
         {view === 'today' ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <div className="flex items-center gap-2 mb-4">
-              <Calendar size={24} className="text-orange-500" />
+              <Star size={24} className="text-orange-500" fill="currentColor" />
               <h2 className="text-2xl font-bold text-gray-900">Today's Focus</h2>
             </div>
             {todayTasks.length > 0 ? (
@@ -987,9 +988,9 @@ const FrontOfMind = () => {
               </div>
             ) : (
               <div className="text-center py-12">
-                <Calendar size={48} className="mx-auto text-gray-300 mb-3" />
+                <Star size={48} className="mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500 mb-2">No tasks scheduled for today</p>
-                <p className="text-sm text-gray-400">Click the calendar icon on any task to add it to Today</p>
+                <p className="text-sm text-gray-400">Click the star icon on any task to add it to Today</p>
               </div>
             )}
           </div>
