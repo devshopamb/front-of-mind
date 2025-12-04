@@ -12,6 +12,7 @@ const FrontOfMind = () => {
   const [editingAssigneeName, setEditingAssigneeName] = useState('');
   const [expandedProjects, setExpandedProjects] = useState(new Set());
   const [expandedTasks, setExpandedTasks] = useState(new Set());
+  const [hideCompleted, setHideCompleted] = useState(true);
   const projectInputRef = useRef(null);
   const taskInputRef = useRef(null);
   const cursorPositionRef = useRef(null);
@@ -423,13 +424,15 @@ const FrontOfMind = () => {
   const northStarProjects = projects.filter(p => p.isNorthStar);
   const regularProjects = projects.filter(p => !p.isNorthStar);
   
-  const allTasks = projects.flatMap(p => flattenTasks(p.tasks, p.name, p.id, p.color)).sort((a, b) => {
-    if (a.completed === b.completed) return 0;
-    return a.completed ? 1 : -1;
-  });
+  const allTasks = projects.flatMap(p => flattenTasks(p.tasks, p.name, p.id, p.color))
+    .filter(t => !hideCompleted || !t.completed)
+    .sort((a, b) => {
+      if (a.completed === b.completed) return 0;
+      return a.completed ? 1 : -1;
+    });
   
   const todayTasks = projects.flatMap(p => flattenTasks(p.tasks, p.name, p.id, p.color))
-    .filter(t => t.isToday)
+    .filter(t => t.isToday && (!hideCompleted || !t.completed))
     .sort((a, b) => {
       if (a.completed === b.completed) {
         return (a.todayOrder || 0) - (b.todayOrder || 0);
@@ -507,6 +510,7 @@ const FrontOfMind = () => {
                     }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
+                        e.preventDefault();
                         updateProject(project.id, { name: editingProjectName });
                         setEditingProject(null);
                         cursorPositionRef.current = null;
@@ -516,6 +520,7 @@ const FrontOfMind = () => {
                         cursorPositionRef.current = null;
                       }
                     }}
+                    onFocus={(e) => e.target.select()}
                     className="text-lg font-semibold w-full border-b-2 border-blue-500 focus:outline-none bg-transparent"
                     autoFocus
                   />
@@ -601,8 +606,8 @@ const FrontOfMind = () => {
           </div>
 
           {isExpanded && (
-            <div className="mt-4 space-y-1">
-              {sortTasks(project.tasks).map(task => (
+            <div className="mt-4 space-y-0.5">
+              {sortTasks(project.tasks).filter(task => !hideCompleted || !task.completed).map(task => (
                 <TaskItem 
                   key={task.id}
                   task={task}
@@ -610,6 +615,7 @@ const FrontOfMind = () => {
                   projectColor={project.color}
                   siblings={project.tasks}
                   viewMode="projects"
+                  hideCompleted={hideCompleted}
                 />
               ))}
               <button
@@ -626,7 +632,7 @@ const FrontOfMind = () => {
     );
   };
 
-  const TaskItem = ({ task, projectId, projectColor, showProject = false, depth = 0, siblings = [], viewMode = 'projects' }) => {
+  const TaskItem = ({ task, projectId, projectColor, showProject = false, depth = 0, siblings = [], viewMode = 'projects', hideCompleted = true }) => {
     const hasSubtasks = task.subtasks && task.subtasks.length > 0;
     const isExpanded = expandedTasks.has(task.id);
     
@@ -636,8 +642,8 @@ const FrontOfMind = () => {
     const canMove = siblings.length > 0;
 
     return (
-      <div className="space-y-1">
-        <div className={`flex items-start gap-2 py-2 rounded hover:bg-gray-50 group ${depth > 0 ? 'ml-8' : 'px-3'}`}>
+      <div className="space-y-0.5">
+        <div className={`flex items-start gap-1.5 py-1 rounded hover:bg-gray-50 group ${depth > 0 ? 'ml-24' : 'px-3'}`}>
           {hasSubtasks ? (
             <button
               onClick={() => toggleTaskExpanded(task.id)}
@@ -684,6 +690,7 @@ const FrontOfMind = () => {
                 }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
+                    e.preventDefault();
                     updateTask(projectId, task.id, { text: editingTaskText });
                     setEditingTask(null);
                     cursorPositionRef.current = null;
@@ -693,72 +700,71 @@ const FrontOfMind = () => {
                     cursorPositionRef.current = null;
                   }
                 }}
+                onFocus={(e) => e.target.select()}
                 className="w-full border-b border-blue-500 focus:outline-none bg-transparent"
                 autoFocus
               />
             ) : (
-              <div>
+              <div className="flex items-center gap-2 flex-wrap">
                 <p className={`${task.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
                   {task.text || 'Empty task'}
                 </p>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  {editingAssignee === task.id ? (
-                    <input
-                      type="text"
-                      value={editingAssigneeName}
-                      onChange={(e) => setEditingAssigneeName(e.target.value)}
-                      onBlur={() => {
+                {editingAssignee === task.id ? (
+                  <input
+                    type="text"
+                    value={editingAssigneeName}
+                    onChange={(e) => setEditingAssigneeName(e.target.value)}
+                    onBlur={() => {
+                      updateTask(projectId, task.id, { assignee: editingAssigneeName });
+                      setEditingAssignee(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
                         updateTask(projectId, task.id, { assignee: editingAssigneeName });
                         setEditingAssignee(null);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          updateTask(projectId, task.id, { assignee: editingAssigneeName });
-                          setEditingAssignee(null);
-                        }
-                        if (e.key === 'Escape') setEditingAssignee(null);
-                      }}
-                      placeholder="Assignee"
-                      className="text-xs px-2 py-0.5 border border-blue-500 rounded-full focus:outline-none min-w-[80px]"
-                      autoFocus
-                    />
-                  ) : task.assignee ? (
-                    <button
-                      onClick={() => {
-                        setEditingAssignee(task.id);
-                        setEditingAssigneeName(task.assignee);
-                      }}
-                      className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors flex items-center gap-1"
-                    >
-                      <User size={12} />
-                      {task.assignee}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setEditingAssignee(task.id);
-                        setEditingAssigneeName('');
-                      }}
-                      className="text-xs px-2 py-0.5 rounded-full border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-1"
-                    >
-                      <User size={12} />
-                      Assign
-                    </button>
-                  )}
-                  
-                  {showProject && (
-                    <span className="text-xs px-2 py-0.5 rounded-full" 
-                          style={{ backgroundColor: `${projectColor}20`, color: projectColor }}>
-                      {task.projectName}
-                    </span>
-                  )}
-                  
-                  {hasSubtasks && (
-                    <span className="text-xs text-gray-500">
-                      {task.subtasks.filter(st => st.completed).length}/{task.subtasks.length} subtasks
-                    </span>
-                  )}
-                </div>
+                      }
+                      if (e.key === 'Escape') setEditingAssignee(null);
+                    }}
+                    placeholder="Assignee"
+                    className="text-xs px-2 py-0.5 border border-blue-500 rounded-full focus:outline-none min-w-[80px]"
+                    autoFocus
+                  />
+                ) : task.assignee ? (
+                  <button
+                    onClick={() => {
+                      setEditingAssignee(task.id);
+                      setEditingAssigneeName(task.assignee);
+                    }}
+                    className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors flex items-center gap-1"
+                  >
+                    <User size={12} />
+                    {task.assignee}
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      setEditingAssignee(task.id);
+                      setEditingAssigneeName('');
+                    }}
+                    className="text-xs px-2 py-0.5 rounded-full border border-dashed border-gray-300 text-gray-400 hover:border-blue-400 hover:text-blue-600 transition-colors opacity-0 group-hover:opacity-100 flex items-center gap-1"
+                  >
+                    <User size={12} />
+                    Assign
+                  </button>
+                )}
+                
+                {showProject && (
+                  <span className="text-xs px-2 py-0.5 rounded-full" 
+                        style={{ backgroundColor: `${projectColor}20`, color: projectColor }}>
+                    {task.projectName}
+                  </span>
+                )}
+                
+                {hasSubtasks && (
+                  <span className="text-xs text-gray-500">
+                    {task.subtasks.filter(st => st.completed).length}/{task.subtasks.length} subtasks
+                  </span>
+                )}
               </div>
             )}
           </div>
@@ -884,8 +890,8 @@ const FrontOfMind = () => {
         </div>
 
         {hasSubtasks && isExpanded && (
-          <div className="space-y-1">
-            {sortTasks(task.subtasks).map(subtask => (
+          <div className="space-y-0.5">
+            {sortTasks(task.subtasks).filter(subtask => !hideCompleted || !subtask.completed).map(subtask => (
               <TaskItem
                 key={subtask.id}
                 task={subtask}
@@ -895,6 +901,7 @@ const FrontOfMind = () => {
                 depth={depth + 1}
                 siblings={task.subtasks}
                 viewMode={viewMode}
+                hideCompleted={hideCompleted}
               />
             ))}
           </div>
@@ -938,11 +945,11 @@ const FrontOfMind = () => {
             onClick={() => setView('today')}
             className={`px-4 py-2 rounded-lg font-medium transition-all ${
               view === 'today'
-                ? 'bg-white text-blue-600 shadow-sm'
-                : 'text-gray-600 hover:bg-white/50'
+                ? 'bg-orange-50 text-orange-600 shadow-sm border border-orange-200'
+                : 'bg-orange-50 text-orange-500 border border-orange-100 opacity-75 hover:opacity-100'
             }`}
           >
-            Today ({todayTasks.length})
+            Today ({todayTasks.filter(t => !t.completed).length})
           </button>
           <button
             onClick={() => setView('projects')}
@@ -968,12 +975,23 @@ const FrontOfMind = () => {
 
         {view === 'today' ? (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Star size={24} className="text-orange-500" fill="currentColor" />
-              <h2 className="text-2xl font-bold text-gray-900">Today's Focus</h2>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Star size={24} className="text-orange-500" fill="currentColor" />
+                <h2 className="text-2xl font-bold text-gray-900">Today's Focus</h2>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hideCompleted}
+                  onChange={(e) => setHideCompleted(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Hide completed
+              </label>
             </div>
             {todayTasks.length > 0 ? (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {todayTasks.map(task => (
                   <TaskItem
                     key={task.id}
@@ -983,6 +1001,7 @@ const FrontOfMind = () => {
                     showProject={true}
                     siblings={todayTasks}
                     viewMode="today"
+                    hideCompleted={hideCompleted}
                   />
                 ))}
               </div>
@@ -1013,13 +1032,24 @@ const FrontOfMind = () => {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold text-gray-900">Projects</h2>
-                <button
-                  onClick={addProject}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-                >
-                  <Plus size={20} />
-                  New Project
-                </button>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hideCompleted}
+                      onChange={(e) => setHideCompleted(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Hide completed
+                  </label>
+                  <button
+                    onClick={addProject}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                  >
+                    <Plus size={20} />
+                    New Project
+                  </button>
+                </div>
               </div>
               <div className="space-y-4">
                 {regularProjects.length > 0 ? (
@@ -1042,9 +1072,20 @@ const FrontOfMind = () => {
           </>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">All Tasks</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-gray-900">All Tasks</h2>
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={hideCompleted}
+                  onChange={(e) => setHideCompleted(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                Hide completed
+              </label>
+            </div>
             {allTasks.length > 0 ? (
-              <div className="space-y-1">
+              <div className="space-y-0.5">
                 {allTasks.map(task => (
                   <TaskItem
                     key={task.id}
@@ -1054,6 +1095,7 @@ const FrontOfMind = () => {
                     showProject={true}
                     siblings={[]}
                     viewMode="all-tasks"
+                    hideCompleted={hideCompleted}
                   />
                 ))}
               </div>
