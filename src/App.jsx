@@ -709,6 +709,14 @@ const FrontOfMind = () => {
                 <p className={`${task.completed ? 'line-through text-gray-400' : 'text-gray-700'}`}>
                   {task.text || 'Empty task'}
                 </p>
+                
+                {showProject && (
+                  <span className="text-xs px-2 py-0.5 rounded-full" 
+                        style={{ backgroundColor: `${projectColor}20`, color: projectColor }}>
+                    {task.projectName}
+                  </span>
+                )}
+                
                 {editingAssignee === task.id ? (
                   <input
                     type="text"
@@ -751,13 +759,6 @@ const FrontOfMind = () => {
                     <User size={12} />
                     Assign
                   </button>
-                )}
-                
-                {showProject && (
-                  <span className="text-xs px-2 py-0.5 rounded-full" 
-                        style={{ backgroundColor: `${projectColor}20`, color: projectColor }}>
-                    {task.projectName}
-                  </span>
                 )}
                 
                 {hasSubtasks && (
