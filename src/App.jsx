@@ -38,6 +38,19 @@ const FrontOfMind = () => {
       }));
       
       setProjects(migratedProjects);
+      
+      // Auto-expand all tasks with subtasks
+      const tasksWithSubtasks = new Set();
+      const findTasksWithSubtasks = (tasks) => {
+        tasks.forEach(task => {
+          if (task.subtasks && task.subtasks.length > 0) {
+            tasksWithSubtasks.add(task.id);
+            findTasksWithSubtasks(task.subtasks);
+          }
+        });
+      };
+      migratedProjects.forEach(project => findTasksWithSubtasks(project.tasks));
+      setExpandedTasks(tasksWithSubtasks);
     } else {
       setProjects([
         {
@@ -94,6 +107,99 @@ const FrontOfMind = () => {
     link.download = `front-of-mind-backup-${new Date().toISOString().split('T')[0]}.json`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const printTodayList = () => {
+    const printWindow = window.open('', '_blank');
+    const currentDate = new Date().toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
+    const renderTaskForPrint = (task, depth = 0) => {
+      const indent = depth * 24;
+      const checkbox = task.completed ? '☑' : '☐';
+      let html = `
+        <div style="margin-left: ${indent}px; margin-bottom: 8px; display: flex; align-items: start; gap: 8px;">
+          <span style="font-size: 16px; flex-shrink: 0;">${checkbox}</span>
+          <div style="flex: 1;">
+            <span style="${task.completed ? 'text-decoration: line-through; color: #9ca3af;' : 'color: #374151;'}">${task.text}</span>
+            ${task.assignee ? `<span style="margin-left: 8px; font-size: 11px; padding: 2px 8px; background: #dbeafe; color: #1e40af; border-radius: 12px;">👤 ${task.assignee}</span>` : ''}
+            ${task.projectName ? `<span style="margin-left: 8px; font-size: 11px; padding: 2px 8px; background-color: ${task.projectColor}20; color: ${task.projectColor}; border-radius: 12px;">${task.projectName}</span>` : ''}
+          </div>
+        </div>
+      `;
+      
+      if (task.subtasks && task.subtasks.length > 0) {
+        task.subtasks.forEach(subtask => {
+          html += renderTaskForPrint(subtask, depth + 1);
+        });
+      }
+      
+      return html;
+    };
+    
+    const tasksHtml = todayTasks.map(task => renderTaskForPrint(task)).join('');
+    
+    const incompleteTasks = todayTasks.filter(t => !t.completed).length;
+    const totalTasks = todayTasks.length;
+    
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Today's Focus - ${currentDate}</title>
+        <style>
+          @media print {
+            body { margin: 0; }
+            @page { margin: 1cm; }
+          }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          h1 {
+            color: #ea580c;
+            font-size: 28px;
+            margin-bottom: 4px;
+          }
+          .date {
+            color: #6b7280;
+            font-size: 14px;
+            margin-bottom: 8px;
+          }
+          .stats {
+            color: #6b7280;
+            font-size: 13px;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #f3f4f6;
+          }
+          .no-print {
+            margin-bottom: 20px;
+          }
+          @media print {
+            .no-print { display: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <h1>⭐ Today's Focus</h1>
+        <div class="date">${currentDate}</div>
+        <div class="stats">${incompleteTasks} task${incompleteTasks !== 1 ? 's' : ''} to complete (${totalTasks} total)</div>
+        <div class="no-print">
+          <button onclick="window.print()" style="padding: 8px 16px; background: #ea580c; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; margin-right: 8px;">Print</button>
+          <button onclick="window.close()" style="padding: 8px 16px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">Close</button>
+        </div>
+        ${tasksHtml}
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const importData = (event) => {
@@ -643,7 +749,7 @@ const FrontOfMind = () => {
 
     return (
       <div className="space-y-0.5">
-        <div className={`flex items-start gap-1.5 py-1 rounded hover:bg-gray-50 group ${depth > 0 ? 'ml-24' : 'px-3'}`}>
+        <div className={`flex items-start gap-1.5 py-1 rounded hover:bg-gray-50 group ${depth > 0 ? 'ml-16' : 'px-3'}`}>
           {hasSubtasks ? (
             <button
               onClick={() => toggleTaskExpanded(task.id)}
@@ -981,15 +1087,29 @@ const FrontOfMind = () => {
                 <Star size={24} className="text-orange-500" fill="currentColor" />
                 <h2 className="text-2xl font-bold text-gray-900">Today's Focus</h2>
               </div>
-              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={hideCompleted}
-                  onChange={(e) => setHideCompleted(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                Hide completed
-              </label>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={hideCompleted}
+                    onChange={(e) => setHideCompleted(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Hide completed
+                </label>
+                <button
+                  onClick={printTodayList}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  title="Print today's list"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                    <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                    <rect x="6" y="14" width="12" height="8"></rect>
+                  </svg>
+                  Print
+                </button>
+              </div>
             </div>
             {todayTasks.length > 0 ? (
               <div className="space-y-0.5">
